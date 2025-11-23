@@ -8,8 +8,9 @@ import {
 } from '../../services/db';
 import { generateProductDescription } from '../../services/gemini';
 import { Order, Product, Category, ContactMessage, ContactStatus, formatINR, calculateDiscount } from '../../types';
-import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag, FolderOpen, Star, Mail, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
+import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag, FolderOpen, Star, Mail, ChevronLeft, ChevronRight, MessageCircle, Bell, BellOff } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
+import { requestNotificationPermission, onMessageListener, showNotification } from '../../services/notifications';
 
 type TabType = 'orders' | 'products' | 'categories' | 'contacts' | 'whatsapp';
 
@@ -20,6 +21,8 @@ const AdminDashboard: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [contacts, setContacts] = useState<ContactMessage[]>([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [orderCount, setOrderCount] = useState(0);
   
   // WhatsApp Templates
   const [whatsappTemplates, setWhatsappTemplates] = useState({
@@ -81,13 +84,15 @@ Wisania Team`
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
   
-  // New Product Form State
+  // Product Form State (for both add and edit)
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState({
     name: '',
     mrp: '',
     price: '',
     category: '',
     imageUrl: '',
+    images: [] as string[],
     description: '',
     inStock: true,
     isFeatured: false
@@ -101,6 +106,40 @@ Wisania Team`
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Initialize notifications
+  const initializeNotifications = async () => {
+    const token = await requestNotificationPermission();
+    if (token) {
+      setNotificationsEnabled(true);
+      console.log('Notifications enabled');
+    }
+  };
+
+  // Play notification sound
+  const playNotificationSound = () => {
+    try {
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PVqzn77BdGAg+ltryxnMnBSyAzvLZiTYIGWi77eabTgwNUKnk7rlfHQU2jdXywn0pBSd+zO/fljwIElyy6vCnWBQKQ5vd8r9wJQU0h9Dzzn4qBSl/ze7dmEAKFF2y6+6qWxYKPpbX8sFwJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4K');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log('Could not play sound:', e));
+    } catch (error) {
+      console.log('Error playing sound:', error);
+    }
+  };
+
+  // Toggle notifications
+  const toggleNotifications = async () => {
+    if (!notificationsEnabled) {
+      const token = await requestNotificationPermission();
+      if (token) {
+        setNotificationsEnabled(true);
+      } else {
+        alert('Unable to enable notifications. Please check your browser settings.');
+      }
+    } else {
+      setNotificationsEnabled(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -117,7 +156,66 @@ Wisania Team`
         console.error('Failed to load WhatsApp templates');
       }
     }
+
+    // Initialize notifications
+    initializeNotifications();
+
+    // Listen for foreground messages
+    const unsubscribe = onMessageListener((payload) => {
+      console.log('Notification received:', payload);
+      if (payload.notification) {
+        // Refresh orders when notification is received
+        if (activeTab === 'orders') {
+          fetchData();
+        }
+      }
+    });
+
+    return () => {
+      if (unsubscribe) {
+        // Cleanup if needed
+      }
+    };
   }, []);
+
+  // Monitor order count changes
+  useEffect(() => {
+    const checkNewOrders = async () => {
+      try {
+        const data = await getOrders();
+        const currentCount = data.length;
+        
+        // Check if there are new orders
+        if (orderCount > 0 && currentCount > orderCount) {
+          const newOrdersCount = currentCount - orderCount;
+          showNotification(
+            '🎉 New Order Received!',
+            `You have ${newOrdersCount} new order${newOrdersCount > 1 ? 's' : ''}. Check your dashboard.`
+          );
+          
+          // Play notification sound
+          playNotificationSound();
+        }
+        
+        setOrderCount(currentCount);
+      } catch (error) {
+        console.error('Error checking new orders:', error);
+      }
+    };
+
+    // Check for new orders every 30 seconds when on orders tab
+    let interval: NodeJS.Timeout | null = null;
+    if (activeTab === 'orders' && notificationsEnabled) {
+      checkNewOrders(); // Initial check
+      interval = setInterval(checkNewOrders, 30000); // Check every 30 seconds
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [activeTab, orderCount, notificationsEnabled]);
 
   const fetchData = async () => {
     try {
@@ -185,32 +283,83 @@ Wisania Team`
     }
     
     try {
-      await addProduct({
-        name: newProduct.name,
-        mrp,
-        price,
-        category: newProduct.category,
-        imageUrl: newProduct.imageUrl,
-        description: newProduct.description,
-        inStock: newProduct.inStock,
-        isFeatured: newProduct.isFeatured
-      });
+      if (editingProductId) {
+        // Update existing product
+        await updateProduct(editingProductId, {
+          name: newProduct.name,
+          mrp,
+          price,
+          category: newProduct.category,
+          imageUrl: newProduct.imageUrl,
+          images: newProduct.images.filter(img => img.trim() !== ''),
+          description: newProduct.description,
+          inStock: newProduct.inStock,
+          isFeatured: newProduct.isFeatured
+        });
+      } else {
+        // Add new product
+        await addProduct({
+          name: newProduct.name,
+          mrp,
+          price,
+          category: newProduct.category,
+          imageUrl: newProduct.imageUrl,
+          images: newProduct.images.filter(img => img.trim() !== ''),
+          description: newProduct.description,
+          inStock: newProduct.inStock,
+          isFeatured: newProduct.isFeatured
+        });
+      }
       
       // Reset form
+      setEditingProductId(null);
       setNewProduct({ 
         name: '', 
         mrp: '',
         price: '', 
         category: categories[0]?.name || '', 
         imageUrl: '', 
+        images: [],
         description: '', 
         inStock: true,
         isFeatured: false
       });
       fetchData();
     } catch (error) {
-      alert('Failed to add product');
+      alert(editingProductId ? 'Failed to update product' : 'Failed to add product');
     }
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProductId(product.id);
+    setNewProduct({
+      name: product.name,
+      mrp: product.mrp.toString(),
+      price: product.price.toString(),
+      category: product.category,
+      imageUrl: product.imageUrl,
+      images: product.images || [],
+      description: product.description,
+      inStock: product.inStock,
+      isFeatured: product.isFeatured
+    });
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProductId(null);
+    setNewProduct({ 
+      name: '', 
+      mrp: '',
+      price: '', 
+      category: categories[0]?.name || '', 
+      imageUrl: '', 
+      images: [],
+      description: '', 
+      inStock: true,
+      isFeatured: false
+    });
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -311,8 +460,21 @@ Wisania Team`
       <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
               <h1 className="text-xl font-serif font-bold text-gray-900 tracking-wide uppercase">Wisania Admin</h1>
+              
+              {/* Notification Toggle */}
+              <button
+                onClick={toggleNotifications}
+                className={`p-2 rounded-lg transition-all ${
+                  notificationsEnabled 
+                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                }`}
+                title={notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
+              >
+                {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
+              </button>
               <div className="ml-10 flex space-x-2">
                 <button 
                   onClick={() => setActiveTab('orders')}
@@ -620,12 +782,22 @@ Wisania Team`
         {/* PRODUCTS TAB */}
         {activeTab === 'products' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Add Product Form */}
+            {/* Add/Edit Product Form */}
             <div className="lg:col-span-1">
               <div className="bg-white shadow-md border border-gray-200 rounded-xl p-6 sticky top-24">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                  <Plus size={20} className="mr-2"/> New Product
-                </h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <Plus size={20} className="mr-2"/> {editingProductId ? 'Edit Product' : 'New Product'}
+                  </h3>
+                  {editingProductId && (
+                    <button
+                      onClick={handleCancelEdit}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
                 <form onSubmit={handleAddProduct} className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Product Name *</label>
@@ -695,8 +867,27 @@ Wisania Team`
                   <ImageUpload
                     value={newProduct.imageUrl}
                     onChange={(base64) => setNewProduct({...newProduct, imageUrl: base64})}
-                    label="Product Image *"
+                    label="Main Product Image *"
                   />
+                  
+                  <div className="border-t pt-4">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Additional Images (Optional)</label>
+                    <p className="text-xs text-gray-500 mb-3">Upload up to 4 additional product images</p>
+                    
+                    {[0, 1, 2, 3].map((index) => (
+                      <div key={index} className="mb-3">
+                        <ImageUpload
+                          value={newProduct.images[index] || ''}
+                          onChange={(base64) => {
+                            const updatedImages = [...newProduct.images];
+                            updatedImages[index] = base64;
+                            setNewProduct({...newProduct, images: updatedImages});
+                          }}
+                          label={`Image ${index + 1}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                   
                   <div className="relative">
                     <label className="block text-xs font-medium text-gray-700 mb-1">Description *</label>
@@ -746,8 +937,17 @@ Wisania Team`
                     disabled={categories.length === 0}
                     className="w-full bg-black text-white py-3 rounded-lg text-sm font-medium hover:bg-gray-800 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Create Product
+                    {editingProductId ? 'Update Product' : 'Create Product'}
                   </button>
+                  {editingProductId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </form>
               </div>
             </div>
@@ -864,8 +1064,19 @@ Wisania Team`
                             <Star size={18} className={product.isFeatured ? 'fill-yellow-500' : ''} />
                           </button>
                           <button 
+                            onClick={() => handleEditProduct(product)} 
+                            className="text-gray-300 hover:text-blue-600 p-2 transition-colors rounded-lg hover:bg-blue-50"
+                            title="Edit product"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                              <path d="m15 5 4 4"/>
+                            </svg>
+                          </button>
+                          <button 
                             onClick={() => handleDeleteProduct(product.id)} 
                             className="text-gray-300 hover:text-red-600 p-2 transition-colors rounded-lg hover:bg-red-50"
+                            title="Delete product"
                           >
                             <Trash2 size={18} />
                           </button>

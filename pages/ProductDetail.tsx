@@ -10,6 +10,7 @@ const ProductDetail: React.FC = () => {
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string>('');
   const { addToCart } = useCart();
 
   useEffect(() => {
@@ -17,6 +18,9 @@ const ProductDetail: React.FC = () => {
       const all = await getProducts();
       const found = all.find(p => p.id === id);
       setProduct(found || null);
+      if (found) {
+        setSelectedImage(found.imageUrl);
+      }
       setLoading(false);
     };
     fetch();
@@ -25,20 +29,47 @@ const ProductDetail: React.FC = () => {
   if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
   if (!product) return <div className="h-screen flex items-center justify-center">Product not found.</div>;
 
+  // Combine main image with additional images
+  const allImages = [product.imageUrl, ...(product.images || [])].filter(img => img);
+
   return (
     <div className="bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="lg:grid lg:grid-cols-2 lg:gap-x-8 lg:items-start">
           
-          {/* Image */}
-          <div className="flex flex-col-reverse">
-            <div className="w-full aspect-w-1 aspect-h-1 rounded-lg overflow-hidden bg-gray-100">
+          {/* Image Gallery */}
+          <div className="flex flex-col">
+            {/* Main Image */}
+            <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 mb-4">
               <img
-                src={product.imageUrl}
+                src={selectedImage}
                 alt={product.name}
                 className="w-full h-full object-center object-cover"
               />
             </div>
+            
+            {/* Thumbnail Gallery */}
+            {allImages.length > 1 && (
+              <div className="grid grid-cols-5 gap-2">
+                {allImages.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(image)}
+                    className={`aspect-square rounded-lg overflow-hidden bg-gray-100 border-2 transition-all ${
+                      selectedImage === image 
+                        ? 'border-black shadow-lg' 
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`${product.name} view ${index + 1}`}
+                      className="w-full h-full object-center object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Info */}

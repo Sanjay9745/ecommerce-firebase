@@ -13,7 +13,8 @@ export interface Product {
   price: number; // Discounted/Selling Price
   category: string;
   description: string;
-  imageUrl: string;
+  imageUrl: string; // Main product image
+  images?: string[]; // Additional product images (sub-images)
   inStock: boolean;
   isFeatured: boolean; // For home page featured products
   createdAt: number;

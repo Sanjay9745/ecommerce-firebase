@@ -107,7 +107,7 @@ const Home: React.FC = () => {
           </div>
           
           {featured.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-y-12 sm:gap-x-8">
               {featured.map((product) => {
                 const discount = product.mrp && product.mrp > product.price
                   ? calculateDiscount(product.mrp, product.price)

@@ -110,7 +110,7 @@ const Shop: React.FC = () => {
              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-6">
             {products.length > 0 ? products.map((product) => {
               const discount = product.mrp && product.mrp > product.price
                 ? calculateDiscount(product.mrp, product.price)
@@ -118,8 +118,8 @@ const Shop: React.FC = () => {
 
               return (
                 <div key={product.id} className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 flex flex-col">
-                  {/* Image Section */}
-                  <div className="relative w-full aspect-[3/4] bg-gray-100 overflow-hidden flex-shrink-0">
+                  {/* Image Section - Clickable */}
+                  <Link to={`/product/${product.id}`} className="relative w-full aspect-[3/4] bg-gray-100 overflow-hidden flex-shrink-0 block">
                     <img
                       src={product.imageUrl}
                       alt={product.name}
@@ -128,8 +128,9 @@ const Shop: React.FC = () => {
                     
                     {/* Discount Badge */}
                     {discount > 0 && (
-                      <div className="absolute top-3 right-3 bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg">
-                        <Tag size={14} />
+                      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-gradient-to-r from-green-500 to-green-600 text-white px-1.5 py-0.5 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg text-[9px] sm:text-xs font-bold flex items-center gap-0.5 sm:gap-1 shadow-lg">
+                        <Tag size={10} className="sm:hidden" />
+                        <Tag size={14} className="hidden sm:block" />
                         <span>{discount}% OFF</span>
                       </div>
                     )}
@@ -142,39 +143,39 @@ const Shop: React.FC = () => {
                         </div>
                       </div>
                     )}
-                  </div>
+                  </Link>
 
                   {/* Content Section */}
-                  <div className="flex-1 p-5 flex flex-col">
+                  <div className="flex-1 p-3 sm:p-5 flex flex-col">
                     {/* Category Badge */}
-                    <span className="inline-block px-2.5 py-1 bg-gray-100 text-gray-600 text-[10px] font-semibold uppercase tracking-wider rounded-full mb-2 self-start">
+                    <span className="inline-block px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gray-100 text-gray-600 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider rounded-full mb-1 sm:mb-2 self-start">
                       {product.category}
                     </span>
                     
                     {/* Product Name */}
-                    <Link to={`/product/${product.id}`} className="block mb-3">
-                      <h3 className="text-base font-bold text-gray-900 hover:text-gray-700 transition-colors line-clamp-2 leading-tight">
+                    <Link to={`/product/${product.id}`} className="block mb-2 sm:mb-3">
+                      <h3 className="text-xs sm:text-base font-bold text-gray-900 hover:text-gray-700 transition-colors line-clamp-2 leading-tight">
                         {product.name}
                       </h3>
                     </Link>
                     
                     {/* Pricing */}
-                    <div className="flex items-baseline gap-2 mb-4">
-                      <span className="text-xl font-bold text-gray-900">{formatINR(product.price)}</span>
+                    <div className="flex items-baseline gap-1 sm:gap-2 mb-2 sm:mb-4">
+                      <span className="text-sm sm:text-xl font-bold text-gray-900">{formatINR(product.price)}</span>
                       {product.mrp && product.mrp > product.price && (
-                        <span className="text-sm text-gray-400 line-through">{formatINR(product.mrp)}</span>
+                        <span className="text-xs sm:text-sm text-gray-400 line-through">{formatINR(product.mrp)}</span>
                       )}
                     </div>
 
                     {/* Action Buttons */}
                     {product.inStock ? (
-                      <div className="flex flex-col gap-2 mt-auto">
+                      <div className="flex flex-col gap-1.5 sm:gap-2 mt-auto">
                         <button 
                           onClick={(e) => {
                             e.preventDefault();
                             addToCart(product);
                           }}
-                          className="w-full bg-white border-2 border-black text-black py-2.5 px-4 text-xs font-bold uppercase tracking-wider hover:bg-black hover:text-white active:scale-95 transition-all duration-200 rounded-lg"
+                          className="w-full bg-white border-2 border-black text-black py-1.5 sm:py-2.5 px-2 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:bg-black hover:text-white active:scale-95 transition-all duration-200 rounded-lg"
                         >
                           Add to Cart
                         </button>
@@ -183,14 +184,14 @@ const Shop: React.FC = () => {
                             e.preventDefault();
                             navigate(`/product/${product.id}`);
                           }}
-                          className="w-full bg-black text-white py-2.5 px-4 text-xs font-bold uppercase tracking-wider hover:bg-gray-800 active:scale-95 transition-all duration-200 rounded-lg shadow-lg"
+                          className="w-full bg-black text-white py-1.5 sm:py-2.5 px-2 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:bg-gray-800 active:scale-95 transition-all duration-200 rounded-lg shadow-lg"
                         >
                           Buy Now
                         </button>
                       </div>
                     ) : (
                       <div className="mt-auto">
-                        <div className="w-full bg-gray-300 text-gray-600 py-2.5 px-4 text-xs font-bold uppercase tracking-wider rounded-lg text-center">
+                        <div className="w-full bg-gray-300 text-gray-600 py-1.5 sm:py-2.5 px-2 sm:px-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-lg text-center">
                           Out of Stock
                         </div>
                       </div>

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging";
 
 // Firebase configuration using environment variables
 const firebaseConfig = {
@@ -18,3 +19,18 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Initialize Firebase Cloud Messaging (only in browser)
+let messaging: ReturnType<typeof getMessaging> | null = null;
+
+if (typeof window !== 'undefined') {
+  isSupported().then((supported) => {
+    if (supported) {
+      messaging = getMessaging(app);
+    }
+  }).catch((error) => {
+    console.error("FCM not supported:", error);
+  });
+}
+
+export { messaging, getToken, onMessage };
