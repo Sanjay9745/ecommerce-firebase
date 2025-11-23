@@ -59,11 +59,12 @@ export const deleteProduct = async (id: string) => {
 
 // --- Orders ---
 
-export const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'status'>) => {
+export const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'status' | 'paymentStatus'>) => {
   try {
     const docRef = await addDoc(collection(db, 'orders'), {
       ...orderData,
       status: 'pending' as OrderStatus,
+      paymentStatus: 'unpaid',
       createdAt: Date.now()
     });
     return docRef;
@@ -100,6 +101,19 @@ export const updateOrderStatus = async (id: string, status: OrderStatus) => {
     });
   } catch (error) {
     console.error("Error updating order status:", error);
+    throw error;
+  }
+};
+
+export const updatePaymentStatus = async (id: string, paymentStatus: 'paid' | 'unpaid') => {
+  try {
+    const ref = doc(db, 'orders', id);
+    await updateDoc(ref, { 
+      paymentStatus,
+      updatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error("Error updating payment status:", error);
     throw error;
   }
 };

@@ -68,6 +68,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
+    // Website Settings Collection
+    match /settings/{document=**} {
+      // Anyone can read website settings (needed for website to display content)
+      allow read: if true;
+      
+      // Only admins can create, update, or delete settings
+      allow create, update, delete: if isAdmin();
+    }
+    
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

@@ -2,12 +2,18 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingBag, Menu, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { getWebsiteSettings, WebsiteSettings } from '../services/websiteSettings';
 
 const Navbar: React.FC = () => {
   const { cartCount, toggleCart } = useCart();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [settings, setSettings] = React.useState<WebsiteSettings | null>(null);
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+
+  React.useEffect(() => {
+    getWebsiteSettings().then(setSettings);
+  }, []);
 
   if (isAdmin) return null;
 
@@ -25,8 +31,18 @@ const Navbar: React.FC = () => {
 
           {/* Logo */}
           <div className="flex-1 flex justify-center md:justify-start">
-            <Link to="/" className="text-3xl font-serif font-medium tracking-widest text-brand-black uppercase">
-              Wisania
+            <Link to="/" className="flex items-center gap-3">
+              {settings?.siteLogo ? (
+                <img 
+                  src={settings.siteLogo} 
+                  alt={settings?.siteTitle || 'Wisania'} 
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <span className="text-3xl font-serif font-medium tracking-widest text-brand-black uppercase">
+                  {settings?.siteTitle || 'Wisania'}
+                </span>
+              )}
             </Link>
           </div>
 
@@ -34,6 +50,7 @@ const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center space-x-10">
             <Link to="/" onClick={() => window.scrollTo(0, 0)} className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Home</Link>
             <Link to="/shop" className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Products</Link>
+            <Link to="/track-order" className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Track Order</Link>
             <Link to="/#contact" className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Contact</Link>
           </div>
 
@@ -59,6 +76,7 @@ const Navbar: React.FC = () => {
         <div className="px-6 py-6 space-y-4">
           <Link to="/" className="block text-lg font-serif text-gray-800" onClick={() => { setIsMenuOpen(false); window.scrollTo(0, 0); }}>Home</Link>
           <Link to="/shop" className="block text-lg font-serif text-gray-800" onClick={() => setIsMenuOpen(false)}>Products</Link>
+          <Link to="/track-order" className="block text-lg font-serif text-gray-800" onClick={() => setIsMenuOpen(false)}>Track Order</Link>
           <Link to="/#contact" className="block text-lg font-serif text-gray-800" onClick={() => setIsMenuOpen(false)}>Contact</Link>
         </div>
       </div>

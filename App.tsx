@@ -1,37 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from './firebase';
 import { CartProvider } from './context/CartContext';
-// Compatibility: when the app is served with path-style URLs (e.g. /admin)
-// but the app uses HashRouter, redirect path-style routes to hash routes
-// so direct navigation/bookmarks like http://host/admin still work.
-if (typeof window !== 'undefined') {
-  const pathname = window.location.pathname || '/';
-  // Only redirect top-level app paths (avoid redirecting real static assets)
-  const appPaths = ['/admin', '/shop', '/product', '/checkout'];
-  const shouldRedirect = appPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-  if (shouldRedirect && !window.location.hash.startsWith('#')) {
-    const targetHash = `#${pathname}${window.location.search || ''}${window.location.hash || ''}`;
-    // Replace so browser history isn't polluted
-    window.location.replace(`${window.location.origin}/${targetHash}`);
-  }
-}
-// Scroll to hash on navigation
-const ScrollToHash = () => {
+
+// Scroll to top on route change
+const ScrollToTop = () => {
   const location = useLocation();
 
   useEffect(() => {
-    if (location.hash) {
-      const elementId = location.hash.replace('#', '');
-      const element = document.getElementById(elementId);
-      if (element) {
-        setTimeout(() => {
-          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-      }
-    }
-  }, [location]);
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return null;
 };
@@ -41,6 +20,7 @@ import Home from './pages/Home';
 import Shop from './pages/Shop';
 import ProductDetail from './pages/ProductDetail';
 import Checkout from './pages/Checkout';
+import OrderTracking from './pages/OrderTracking';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 
@@ -94,7 +74,7 @@ const App: React.FC = () => {
     <CartProvider>
       <Router>
         <div className="min-h-screen bg-white text-brand-black font-sans">
-          <ScrollToHash />
+          <ScrollToTop />
           <Navbar />
           <CartDrawer />
           <Routes>
@@ -103,6 +83,7 @@ const App: React.FC = () => {
             <Route path="/shop" element={<Shop />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/track-order" element={<OrderTracking />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLogin />} />

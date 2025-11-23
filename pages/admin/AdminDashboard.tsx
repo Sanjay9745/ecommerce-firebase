@@ -4,15 +4,16 @@ import { auth } from '../../firebase';
 import { useNavigate } from 'react-router-dom';
 import { 
   getOrders, getProducts, updateOrderStatus, addProduct, deleteProduct, updateProduct,
-  getCategories, addCategory, deleteCategory, getContactMessages, updateContactStatus, deleteContactMessage
+  getCategories, addCategory, deleteCategory, getContactMessages, updateContactStatus, deleteContactMessage,
+  updatePaymentStatus
 } from '../../services/db';
 import { generateProductDescription } from '../../services/gemini';
 import { Order, Product, Category, ContactMessage, ContactStatus, formatINR, calculateDiscount } from '../../types';
-import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag, FolderOpen, Star, Mail, ChevronLeft, ChevronRight, MessageCircle, Bell, BellOff } from 'lucide-react';
+import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag, FolderOpen, Star, Mail, ChevronLeft, ChevronRight, MessageCircle, Settings } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
-import { requestNotificationPermission, onMessageListener, showNotification } from '../../services/notifications';
+import { getWebsiteSettings, updateWebsiteSettings, WebsiteSettings } from '../../services/websiteSettings';
 
-type TabType = 'orders' | 'products' | 'categories' | 'contacts' | 'whatsapp';
+type TabType = 'orders' | 'products' | 'categories' | 'contacts' | 'whatsapp' | 'settings';
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -21,8 +22,6 @@ const AdminDashboard: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [contacts, setContacts] = useState<ContactMessage[]>([]);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [orderCount, setOrderCount] = useState(0);
   
   // WhatsApp Templates
   const [whatsappTemplates, setWhatsappTemplates] = useState({
@@ -33,6 +32,8 @@ Thank you for your order at Wisania!
 *Order ID:* {orderId}
 *Total Amount:* {totalAmount}
 *Status:* {status}
+
+Track your order: {trackingLink}
 
 We'll keep you updated on your order status.
 
@@ -47,6 +48,8 @@ Great news! Your order has been shipped.
 *Order ID:* {orderId}
 *Items:* {items}
 
+Track your order: {trackingLink}
+
 Your package is on its way and will be delivered soon.
 
 Thank you for shopping with Wisania!`,
@@ -55,6 +58,8 @@ Thank you for shopping with Wisania!`,
 Your order has been delivered successfully!
 
 *Order ID:* {orderId}
+
+Track your order: {trackingLink}
 
 We hope you love your purchase. Please share your feedback with us.
 
@@ -107,39 +112,10 @@ Wisania Team`
   
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Initialize notifications
-  const initializeNotifications = async () => {
-    const token = await requestNotificationPermission();
-    if (token) {
-      setNotificationsEnabled(true);
-      console.log('Notifications enabled');
-    }
-  };
-
-  // Play notification sound
-  const playNotificationSound = () => {
-    try {
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PVqzn77BdGAg+ltryxnMnBSyAzvLZiTYIGWi77eabTgwNUKnk7rlfHQU2jdXywn0pBSd+zO/fljwIElyy6vCnWBQKQ5vd8r9wJQU0h9Dzzn4qBSl/ze7dmEAKFF2y6+6qWxYKPpbX8sFwJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4KFVuw6++pWxYKPZXW8sFxJgUsfM7w3JE+ChVbsOvvqVsWCj2V1vLBcSYFLHzO8NyRPgoVW7Dr76lbFgo9ldbywXEmBSx8zvDckT4K');
-      audio.volume = 0.5;
-      audio.play().catch(e => console.log('Could not play sound:', e));
-    } catch (error) {
-      console.log('Error playing sound:', error);
-    }
-  };
-
-  // Toggle notifications
-  const toggleNotifications = async () => {
-    if (!notificationsEnabled) {
-      const token = await requestNotificationPermission();
-      if (token) {
-        setNotificationsEnabled(true);
-      } else {
-        alert('Unable to enable notifications. Please check your browser settings.');
-      }
-    } else {
-      setNotificationsEnabled(false);
-    }
-  };
+  // Website Settings State
+  const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -156,66 +132,7 @@ Wisania Team`
         console.error('Failed to load WhatsApp templates');
       }
     }
-
-    // Initialize notifications
-    initializeNotifications();
-
-    // Listen for foreground messages
-    const unsubscribe = onMessageListener((payload) => {
-      console.log('Notification received:', payload);
-      if (payload.notification) {
-        // Refresh orders when notification is received
-        if (activeTab === 'orders') {
-          fetchData();
-        }
-      }
-    });
-
-    return () => {
-      if (unsubscribe) {
-        // Cleanup if needed
-      }
-    };
   }, []);
-
-  // Monitor order count changes
-  useEffect(() => {
-    const checkNewOrders = async () => {
-      try {
-        const data = await getOrders();
-        const currentCount = data.length;
-        
-        // Check if there are new orders
-        if (orderCount > 0 && currentCount > orderCount) {
-          const newOrdersCount = currentCount - orderCount;
-          showNotification(
-            '🎉 New Order Received!',
-            `You have ${newOrdersCount} new order${newOrdersCount > 1 ? 's' : ''}. Check your dashboard.`
-          );
-          
-          // Play notification sound
-          playNotificationSound();
-        }
-        
-        setOrderCount(currentCount);
-      } catch (error) {
-        console.error('Error checking new orders:', error);
-      }
-    };
-
-    // Check for new orders every 30 seconds when on orders tab
-    let interval: NodeJS.Timeout | null = null;
-    if (activeTab === 'orders' && notificationsEnabled) {
-      checkNewOrders(); // Initial check
-      interval = setInterval(checkNewOrders, 30000); // Check every 30 seconds
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [activeTab, orderCount, notificationsEnabled]);
 
   const fetchData = async () => {
     try {
@@ -239,9 +156,15 @@ Wisania Team`
       } else if (activeTab === 'contacts') {
         const data = await getContactMessages();
         setContacts(data);
+      } else if (activeTab === 'settings') {
+        setIsLoadingSettings(true);
+        const settings = await getWebsiteSettings();
+        setWebsiteSettings(settings);
+        setIsLoadingSettings(false);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setIsLoadingSettings(false);
     }
   };
 
@@ -256,6 +179,15 @@ Wisania Team`
       fetchData();
     } catch (error) {
       alert('Failed to update order status');
+    }
+  };
+
+  const handlePaymentStatusUpdate = async (orderId: string, newPaymentStatus: 'paid' | 'unpaid') => {
+    try {
+      await updatePaymentStatus(orderId, newPaymentStatus);
+      fetchData();
+    } catch (error) {
+      alert('Failed to update payment status');
     }
   };
 
@@ -439,13 +371,15 @@ Wisania Team`
 
   const generateOrderMessage = (order: Order, template: string) => {
     const itemsList = order.items.map(item => `${item.quantity}x ${item.name}`).join(', ');
+    const trackingLink = `${window.location.origin}/track-order?id=${order.id}`;
     
     return template
       .replace('{customerName}', order.customerName)
       .replace('{orderId}', order.id.slice(0, 8))
       .replace('{totalAmount}', formatINR(order.totalAmount))
       .replace('{status}', order.status.charAt(0).toUpperCase() + order.status.slice(1))
-      .replace('{items}', itemsList);
+      .replace('{items}', itemsList)
+      .replace('{trackingLink}', trackingLink);
   };
 
   const generateContactMessage = (contact: ContactMessage, template: string) => {
@@ -454,80 +388,29 @@ Wisania Team`
       .replace('{subject}', contact.subject);
   };
 
+  const handleSaveSettings = async () => {
+    if (!websiteSettings) return;
+    
+    setIsSavingSettings(true);
+    try {
+      await updateWebsiteSettings(websiteSettings);
+      alert('Website settings saved successfully! ✅');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Failed to save settings. Please try again.');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 font-sans">
       {/* Admin Nav */}
       <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center gap-4">
-              <h1 className="text-xl font-serif font-bold text-gray-900 tracking-wide uppercase">Wisania Admin</h1>
-              
-              {/* Notification Toggle */}
-              <button
-                onClick={toggleNotifications}
-                className={`p-2 rounded-lg transition-all ${
-                  notificationsEnabled 
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                }`}
-                title={notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
-              >
-                {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
-              </button>
-              <div className="ml-10 flex space-x-2">
-                <button 
-                  onClick={() => setActiveTab('orders')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    activeTab === 'orders' 
-                      ? 'bg-black text-white shadow-md' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center"><ShoppingBag size={16} className="mr-2"/> Orders</div>
-                </button>
-                <button 
-                  onClick={() => setActiveTab('products')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    activeTab === 'products' 
-                      ? 'bg-black text-white shadow-md' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center"><Package size={16} className="mr-2"/> Products</div>
-                </button>
-                <button 
-                  onClick={() => setActiveTab('categories')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    activeTab === 'categories' 
-                      ? 'bg-black text-white shadow-md' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center"><FolderOpen size={16} className="mr-2"/> Categories</div>
-                </button>
-                <button 
-                  onClick={() => setActiveTab('contacts')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    activeTab === 'contacts' 
-                      ? 'bg-black text-white shadow-md' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center"><Mail size={16} className="mr-2"/> Contacts</div>
-                </button>
-                <button 
-                  onClick={() => setActiveTab('whatsapp')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    activeTab === 'whatsapp' 
-                      ? 'bg-black text-white shadow-md' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center"><MessageCircle size={16} className="mr-2"/> WhatsApp</div>
-                </button>
-              </div>
-            </div>
+          <div className="flex flex-col sm:flex-row justify-between gap-4 py-4">
+            <h1 className="text-xl font-serif font-bold text-gray-900 tracking-wide uppercase">Wisania Admin</h1>
+            
             <div className="flex items-center">
               <button 
                 onClick={handleLogout} 
@@ -537,11 +420,75 @@ Wisania Team`
               </button>
             </div>
           </div>
+
+          {/* Tab Navigation - Mobile Responsive */}
+          <div className="flex flex-wrap gap-2 pb-4">
+            <button 
+              onClick={() => setActiveTab('orders')}
+              className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'orders' 
+                  ? 'bg-black text-white shadow-md' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center"><ShoppingBag size={14} className="mr-1 sm:mr-2"/> <span className="hidden xs:inline">Orders</span></div>
+            </button>
+            <button 
+              onClick={() => setActiveTab('products')}
+              className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'products' 
+                  ? 'bg-black text-white shadow-md' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center"><Package size={14} className="mr-1 sm:mr-2"/> <span className="hidden xs:inline">Products</span></div>
+            </button>
+            <button 
+              onClick={() => setActiveTab('categories')}
+              className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'categories' 
+                  ? 'bg-black text-white shadow-md' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center"><FolderOpen size={14} className="mr-1 sm:mr-2"/> <span className="hidden xs:inline">Categories</span></div>
+            </button>
+            <button 
+              onClick={() => setActiveTab('contacts')}
+              className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'contacts' 
+                  ? 'bg-black text-white shadow-md' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center"><Mail size={14} className="mr-1 sm:mr-2"/> <span className="hidden xs:inline">Contacts</span></div>
+            </button>
+            <button 
+              onClick={() => setActiveTab('whatsapp')}
+              className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'whatsapp' 
+                  ? 'bg-black text-white shadow-md' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center"><MessageCircle size={14} className="mr-1 sm:mr-2"/> <span className="hidden xs:inline">WhatsApp</span></div>
+            </button>
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === 'settings' 
+                  ? 'bg-black text-white shadow-md' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center"><Settings size={14} className="mr-1 sm:mr-2"/> <span className="hidden xs:inline">Settings</span></div>
+            </button>
+          </div>
         </div>
       </nav>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
         
         {/* ORDERS TAB */}
         {activeTab === 'orders' && (() => {
@@ -588,8 +535,8 @@ Wisania Team`
           return (
             <div className="bg-white shadow-md border border-gray-200 rounded-xl overflow-hidden">
               {/* Header with filters */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                <div className="flex flex-col gap-4">
                   <div>
                     <h2 className="text-sm font-bold uppercase tracking-wide text-gray-700">Orders Management</h2>
                     <span className="text-xs text-gray-500">
@@ -608,7 +555,7 @@ Wisania Team`
                         setOrderSearchTerm(e.target.value);
                         setCurrentPage(1); // Reset to first page
                       }}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent"
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent w-full sm:w-auto"
                     />
 
                     {/* Date Filter */}
@@ -649,23 +596,22 @@ Wisania Team`
               {/* Orders List */}
               <ul className="divide-y divide-gray-200">
                 {paginatedOrders.map((order) => (
-                <li key={order.id} className="p-6 hover:bg-gray-50 transition-colors">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+                <li key={order.id} className="p-4 sm:p-6 hover:bg-gray-50 transition-colors">
+                  <div className="flex flex-col gap-4">
                     <div>
-                      <div className="flex items-center">
-                        <h3 className="text-lg font-medium text-gray-900 mr-3">Order #{order.id.slice(0, 8)}</h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <h3 className="text-lg font-medium text-gray-900">Order #{order.id.slice(0, 8)}</h3>
                         <span className="text-xs text-gray-500 font-mono">{new Date(order.createdAt).toLocaleDateString('en-IN')}</span>
                       </div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        <span className="font-medium">{order.customerName}</span> <span className="text-gray-400">|</span>{' '}
-                        <a href={`mailto:${order.email}`} className="text-blue-600 hover:underline">{order.email}</a>{' '}
-                        <span className="text-gray-400">|</span> {order.phone}
+                      <div className="mt-1 text-sm text-gray-600 flex flex-col gap-1">
+                        <span><span className="font-medium">{order.customerName}</span> <span className="text-gray-400">|</span> <a href={`mailto:${order.email}`} className="text-blue-600 hover:underline">{order.email}</a></span>
+                        <span>{order.phone}</span>
+                        <p className="text-sm text-gray-500 mt-1">{order.address}</p>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">{order.address}</p>
                     </div>
-                    <div className="text-left md:text-right">
-                      <p className="text-2xl font-bold text-gray-900">{formatINR(order.totalAmount)}</p>
-                      <div className="mt-2 inline-block">
+                    <div className="border-t pt-4">
+                      <p className="text-2xl font-bold text-gray-900 mb-2">{formatINR(order.totalAmount)}</p>
+                      <div className="mt-2 space-y-2">
                         <select 
                           value={order.status}
                           onChange={(e) => handleStatusUpdate(order.id, e.target.value as Order['status'])}
@@ -680,6 +626,15 @@ Wisania Team`
                           <option value="delivered">Delivered</option>
                           <option value="cancelled">Cancelled</option>
                         </select>
+                        <select 
+                          value={order.paymentStatus}
+                          onChange={(e) => handlePaymentStatusUpdate(order.id, e.target.value as 'paid' | 'unpaid')}
+                          className={`block w-full pl-3 pr-8 py-1.5 text-xs font-semibold rounded-full border-0 focus:ring-2 focus:ring-black cursor-pointer
+                          ${order.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}
+                        >
+                          <option value="unpaid">💳 Unpaid</option>
+                          <option value="paid">✅ Paid</option>
+                        </select>
                       </div>
                       <button
                         onClick={() => {
@@ -691,8 +646,8 @@ Wisania Team`
                           const message = generateOrderMessage(order, template);
                           sendWhatsAppMessage(order.phone, message);
                         }}
-                        className="mt-2 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
-                        title="Send WhatsApp message"
+                        className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                        title="Send WhatsApp message with tracking link"
                       >
                         <MessageCircle size={14} />
                         WhatsApp
@@ -746,30 +701,30 @@ Wisania Team`
 
             {/* Pagination - More Prominent */}
             {filteredOrders.length > itemsPerPage && (
-              <div className="bg-gray-50 border-t-2 border-gray-300 px-6 py-5">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-sm font-medium text-gray-700 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+              <div className="bg-gray-50 border-t-2 border-gray-300 px-4 sm:px-6 py-4 sm:py-5">
+                <div className="flex flex-col gap-4">
+                  <div className="text-xs sm:text-sm font-medium text-gray-700 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200 text-center">
                     Showing <span className="font-bold text-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-bold text-black">{Math.min(currentPage * itemsPerPage, filteredOrders.length)}</span> of <span className="font-bold text-black">{filteredOrders.length}</span> orders
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
                     <button
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentPage === 1}
-                      className="px-5 py-2.5 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-100 hover:border-gray-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-300 flex items-center gap-2 font-medium text-sm transition-all shadow-sm"
+                      className="px-3 sm:px-5 py-2 sm:py-2.5 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-100 hover:border-gray-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-300 flex items-center gap-1 sm:gap-2 font-medium text-xs sm:text-sm transition-all shadow-sm"
                     >
-                      <ChevronLeft size={18} />
+                      <ChevronLeft size={16} />
                       <span className="hidden sm:inline">Previous</span>
                     </button>
-                    <div className="px-5 py-2.5 bg-black text-white rounded-lg font-bold text-sm shadow-md">
-                      Page {currentPage} of {totalPages}
+                    <div className="px-3 sm:px-5 py-2 sm:py-2.5 bg-black text-white rounded-lg font-bold text-xs sm:text-sm shadow-md">
+                      {currentPage} / {totalPages}
                     </div>
                     <button
                       onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                       disabled={currentPage >= totalPages}
-                      className="px-5 py-2.5 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-100 hover:border-gray-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-300 flex items-center gap-2 font-medium text-sm transition-all shadow-sm"
+                      className="px-3 sm:px-5 py-2 sm:py-2.5 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-100 hover:border-gray-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-300 flex items-center gap-1 sm:gap-2 font-medium text-xs sm:text-sm transition-all shadow-sm"
                     >
                       <span className="hidden sm:inline">Next</span>
-                      <ChevronRight size={18} />
+                      <ChevronRight size={16} />
                     </button>
                   </div>
                 </div>
@@ -781,10 +736,10 @@ Wisania Team`
 
         {/* PRODUCTS TAB */}
         {activeTab === 'products' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Add/Edit Product Form */}
             <div className="lg:col-span-1">
-              <div className="bg-white shadow-md border border-gray-200 rounded-xl p-6 sticky top-24">
+              <div className="bg-white shadow-md border border-gray-200 rounded-xl p-6 lg:sticky lg:top-24">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                     <Plus size={20} className="mr-2"/> {editingProductId ? 'Edit Product' : 'New Product'}
@@ -1025,25 +980,25 @@ Wisania Team`
                           <div className="h-16 w-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
                             <img className="h-full w-full object-cover" src={product.imageUrl} alt={product.name} />
                           </div>
-                          <div className="ml-4 flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                          <div className="ml-4 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="text-sm font-medium text-gray-900 truncate">{product.name}</div>
                               {product.isFeatured && (
-                                <Star size={14} className="text-yellow-500 fill-yellow-500" title="Featured" />
+                                <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" title="Featured" />
                               )}
                             </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs">{product.category}</span>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{product.category}</span>
                               {discount > 0 && (
-                                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0">
                                   {discount}% OFF
                                 </span>
                               )}
                               {!product.inStock && (
-                                <span className="text-red-500 text-[10px] uppercase font-bold">Out of Stock</span>
+                                <span className="text-red-500 text-[10px] uppercase font-bold flex-shrink-0">Out of Stock</span>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                               {discount > 0 && (
                                 <span className="text-xs text-gray-400 line-through">{formatINR(product.mrp)}</span>
                               )}
@@ -1147,10 +1102,10 @@ Wisania Team`
 
         {/* CATEGORIES TAB */}
         {activeTab === 'categories' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Add Category Form */}
             <div className="lg:col-span-1">
-              <div className="bg-white shadow-md border border-gray-200 rounded-xl p-6 sticky top-24">
+              <div className="bg-white shadow-md border border-gray-200 rounded-xl p-6 lg:sticky lg:top-24">
                 <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
                   <Plus size={20} className="mr-2"/> New Category
                 </h3>
@@ -1262,22 +1217,22 @@ Wisania Team`
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Email
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Subject
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -1287,34 +1242,34 @@ Wisania Team`
                       .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                       .map((contact) => (
                         <tr key={contact.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                             {new Date(contact.createdAt).toLocaleDateString('en-IN', {
                               day: '2-digit',
                               month: 'short',
                               year: 'numeric'
                             })}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{contact.name}</div>
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                            <div className="text-xs sm:text-sm font-medium text-gray-900">{contact.name}</div>
                             {contact.phone && (
-                              <div className="text-xs text-gray-500">{contact.phone}</div>
+                              <div className="text-xs text-gray-500 break-all">{contact.phone}</div>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 break-all">
                             {contact.email}
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900 max-w-xs truncate">{contact.subject}</div>
+                          <td className="px-3 sm:px-6 py-3 sm:py-4">
+                            <div className="text-xs sm:text-sm text-gray-900 max-w-xs truncate">{contact.subject}</div>
                             <div className="text-xs text-gray-500 mt-1 max-w-xs truncate">{contact.message}</div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                             <select
                               value={contact.status}
                               onChange={(e) => {
                                 updateContactStatus(contact.id, e.target.value as ContactStatus);
                                 fetchData();
                               }}
-                              className={`text-xs font-semibold px-3 py-1 rounded-full border-0 ${
+                              className={`text-xs font-semibold px-2 sm:px-3 py-1 rounded-full border-0 ${
                                 contact.status === 'new' ? 'bg-blue-100 text-blue-800' :
                                 contact.status === 'read' ? 'bg-gray-100 text-gray-800' :
                                 contact.status === 'replied' ? 'bg-green-100 text-green-800' :
@@ -1327,8 +1282,8 @@ Wisania Team`
                               <option value="archived">Archived</option>
                             </select>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <div className="flex items-center gap-2">
+                          <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm">
+                            <div className="flex items-center gap-1 sm:gap-2">
                               <a
                                 href={`mailto:${contact.email}`}
                                 className="text-blue-600 hover:text-blue-800"
@@ -1559,6 +1514,477 @@ Wisania Team`
                   </ul>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div className="max-w-5xl mx-auto">
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-8 text-white">
+                <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                  <Settings size={28} />
+                  Website Settings
+                </h2>
+                <p className="text-purple-100">Customize all content displayed on your website</p>
+              </div>
+
+              {isLoadingSettings ? (
+                <div className="p-12 text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading settings...</p>
+                </div>
+              ) : websiteSettings ? (
+                <div className="p-6 space-y-8">
+                  {/* Logo & Title Section */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Logo & Site Title</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Site Logo</label>
+                        <div className="flex flex-col gap-4">
+                          {websiteSettings.siteLogo && (
+                            <div className="w-full bg-gray-100 rounded-lg p-4 flex items-center justify-center h-32">
+                              <img 
+                                src={websiteSettings.siteLogo} 
+                                alt="Site Logo" 
+                                className="max-h-28 max-w-xs object-contain"
+                              />
+                            </div>
+                          )}
+                          <ImageUpload
+                            currentImage={websiteSettings.siteLogo}
+                            onImageUploaded={(url) => setWebsiteSettings({...websiteSettings, siteLogo: url})}
+                            folder="logo"
+                          />
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Site Title</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.siteTitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, siteTitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="e.g., Wisania - Women's Fashion"
+                        />
+                        <p className="text-xs text-gray-500 mt-2">This appears in browser tab and search results</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hero Section */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Hero Section</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Title</label>
+                        <textarea
+                          value={websiteSettings.heroTitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, heroTitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          rows={2}
+                          placeholder="e.g., Elegance is an attitude."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Subtitle</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.heroSubtitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, heroSubtitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="e.g., New Season Collection"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Description</label>
+                        <textarea
+                          value={websiteSettings.heroDescription}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, heroDescription: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Button Text</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.heroButtonText}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, heroButtonText: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="e.g., Shop Now"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Image URL</label>
+                        <ImageUpload
+                          currentImage={websiteSettings.heroImage}
+                          onImageUploaded={(url) => setWebsiteSettings({...websiteSettings, heroImage: url})}
+                          folder="hero"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Brand Section */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Brand Section</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Brand Quote</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.brandQuote}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, brandQuote: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Brand Tagline</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.brandTagline}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, brandTagline: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Contact Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Email 1</label>
+                        <input
+                          type="email"
+                          value={websiteSettings.contactEmail1}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactEmail1: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Email 2</label>
+                        <input
+                          type="email"
+                          value={websiteSettings.contactEmail2}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactEmail2: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
+                        <input
+                          type="tel"
+                          value={websiteSettings.contactPhone}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactPhone: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="+919876543210"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Display Format</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.contactPhoneDisplay}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactPhoneDisplay: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="+91 98765 43210"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.contactAddress}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactAddress: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">City</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.contactCity}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactCity: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.contactState}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactState: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">ZIP Code</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.contactZip}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactZip: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Country</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.contactCountry}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactCountry: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Business Hours */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Business Hours</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Monday - Friday</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.mondayFriday}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, mondayFriday: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Saturday</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.saturday}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, saturday: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Sunday</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.sunday}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, sunday: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Holidays</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.holidays}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, holidays: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Page Sections */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Page Section Titles</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Featured Products Title</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.featuredTitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, featuredTitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Featured Products Subtitle</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.featuredSubtitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, featuredSubtitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Categories Title</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.categoriesTitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, categoriesTitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Categories Subtitle</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.categoriesSubtitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, categoriesSubtitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Section Title</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.contactTitle}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactTitle: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Section Description</label>
+                        <textarea
+                          value={websiteSettings.contactDescription}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, contactDescription: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SEO & Meta */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">SEO & Meta Tags</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Site Description</label>
+                        <textarea
+                          value={websiteSettings.siteDescription}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, siteDescription: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          rows={2}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Keywords (comma-separated)</label>
+                        <input
+                          type="text"
+                          value={websiteSettings.siteKeywords}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, siteKeywords: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Social Media */}
+                  <div className="border-b border-gray-200 pb-6">
+                    <h3 className="text-xl font-bold mb-4 text-gray-900">Social Media Links</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Facebook</label>
+                        <input
+                          type="url"
+                          value={websiteSettings.facebook}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, facebook: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="https://facebook.com/wisania"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Instagram</label>
+                        <input
+                          type="url"
+                          value={websiteSettings.instagram}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, instagram: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="https://instagram.com/wisania"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Twitter</label>
+                        <input
+                          type="url"
+                          value={websiteSettings.twitter}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, twitter: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="https://twitter.com/wisania"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Pinterest</label>
+                        <input
+                          type="url"
+                          value={websiteSettings.pinterest}
+                          onChange={(e) => setWebsiteSettings({...websiteSettings, pinterest: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="https://pinterest.com/wisania"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cache Info */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Cache Version:</span>
+                      <span className="font-mono font-semibold text-gray-800">{websiteSettings.version}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-2">
+                      <span className="text-gray-600">Last Updated:</span>
+                      <span className="font-mono text-gray-800">
+                        {new Date(websiteSettings.lastUpdated).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="flex justify-end pt-4 border-t border-gray-200">
+                    <button
+                      onClick={handleSaveSettings}
+                      disabled={isSavingSettings}
+                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-8 py-3 rounded-lg font-semibold flex items-center gap-2 transition-colors shadow-lg"
+                    >
+                      {isSavingSettings ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Settings size={18} />
+                          Save Settings
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Instructions */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                    <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                      <Settings size={18} />
+                      How Website Settings Work
+                    </h4>
+                    <ul className="space-y-2 text-sm text-purple-800">
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold mt-0.5">•</span>
+                        <span>All content is cached in localStorage for fast loading</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold mt-0.5">•</span>
+                        <span>When you save, a unique hash is generated to invalidate old cache</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold mt-0.5">•</span>
+                        <span>Changes are synced across all devices automatically</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-bold mt-0.5">•</span>
+                        <span>Refresh your website after saving to see the changes</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-12 text-center text-gray-500">
+                  <p>Failed to load settings. Please try refreshing the page.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

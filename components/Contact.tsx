@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { addContactMessage } from '../services/db';
 import { Mail, Phone, MapPin, Send, CheckCircle } from 'lucide-react';
+import { getWebsiteSettings, WebsiteSettings } from '../services/websiteSettings';
 
 const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -11,9 +12,22 @@ const Contact: React.FC = () => {
     subject: '',
     message: ''
   });
+  const [settings, setSettings] = useState<WebsiteSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const data = await getWebsiteSettings();
+        setSettings(data);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -55,10 +69,10 @@ const Contact: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-serif font-medium text-gray-900 mb-4">
-            Get in Touch
+            {settings?.contactTitle || "Get in Touch"}
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Have a question or need assistance? We're here to help. Reach out and we'll get back to you as soon as possible.
+            {settings?.contactDescription || "Have a question or need assistance? We're here to help. Reach out and we'll get back to you as soon as possible."}
           </p>
         </div>
 
@@ -75,16 +89,16 @@ const Contact: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Email Us</h3>
                   <a 
-                    href="mailto:contact@wisania.com" 
+                    href={`mailto:${settings?.contactEmail1 || 'contact@wisania.com'}`}
                     className="text-gray-600 hover:text-black transition-colors block mb-1"
                   >
-                    contact@wisania.com
+                    {settings?.contactEmail1 || 'contact@wisania.com'}
                   </a>
                   <a 
-                    href="mailto:support@wisania.com" 
+                    href={`mailto:${settings?.contactEmail2 || 'support@wisania.com'}`}
                     className="text-gray-600 hover:text-black transition-colors block"
                   >
-                    support@wisania.com
+                    {settings?.contactEmail2 || 'support@wisania.com'}
                   </a>
                 </div>
               </div>
@@ -100,12 +114,14 @@ const Contact: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Call Us</h3>
                   <a 
-                    href="tel:+919876543210" 
+                    href={`tel:${settings?.contactPhone || '+919876543210'}`}
                     className="text-gray-600 hover:text-black transition-colors block mb-1"
                   >
-                    +91 98765 43210
+                    {settings?.contactPhoneDisplay || '+91 98765 43210'}
                   </a>
-                  <p className="text-sm text-gray-500">Mon-Sat: 10AM - 7PM IST</p>
+                  <p className="text-sm text-gray-500">
+                    Mon-Fri: {settings?.mondayFriday || '10:00 AM - 8:00 PM IST'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -120,10 +136,10 @@ const Contact: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Visit Us</h3>
                   <p className="text-gray-600">
-                    123 Fashion Street<br />
-                    Bandra West<br />
-                    Mumbai, Maharashtra 400050<br />
-                    India
+                    {settings?.contactAddress || '123 Fashion Street'}<br />
+                    {settings?.contactCity || 'Bandra West, Mumbai'}<br />
+                    {settings?.contactState || 'Maharashtra'} {settings?.contactZip || '400050'}<br />
+                    {settings?.contactCountry || 'India'}
                   </p>
                 </div>
               </div>
@@ -190,12 +206,12 @@ const Contact: React.FC = () => {
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Phone Number (Optional)
                       </label>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-col sm:flex-row">
                         <select 
                           name="countryCode" 
                           value={formData.countryCode} 
                           onChange={handleChange}
-                          className="w-28 px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition"
+                          className="w-full sm:w-32 px-2 sm:px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition text-sm"
                         >
                           <option value="+91">🇮🇳 +91</option>
                           <option value="+1">🇺🇸 +1</option>
@@ -213,7 +229,7 @@ const Contact: React.FC = () => {
                           name="phone"
                           value={formData.phone}
                           onChange={handleChange}
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition"
+                          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition text-sm"
                           placeholder="98765 43210"
                         />
                       </div>
@@ -293,19 +309,19 @@ const Contact: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-center md:text-left">
               <div className="space-y-2">
                 <p className="font-semibold">Monday - Friday</p>
-                <p className="text-gray-400">10:00 AM - 8:00 PM IST</p>
+                <p className="text-gray-400">{settings?.mondayFriday || '10:00 AM - 8:00 PM IST'}</p>
               </div>
               <div className="space-y-2">
                 <p className="font-semibold">Saturday</p>
-                <p className="text-gray-400">10:00 AM - 6:00 PM IST</p>
+                <p className="text-gray-400">{settings?.saturday || '10:00 AM - 6:00 PM IST'}</p>
               </div>
               <div className="space-y-2">
                 <p className="font-semibold">Sunday</p>
-                <p className="text-gray-400">Closed</p>
+                <p className="text-gray-400">{settings?.sunday || 'Closed'}</p>
               </div>
               <div className="space-y-2">
                 <p className="font-semibold">Public Holidays</p>
-                <p className="text-gray-400">Closed</p>
+                <p className="text-gray-400">{settings?.holidays || 'Closed'}</p>
               </div>
             </div>
           </div>

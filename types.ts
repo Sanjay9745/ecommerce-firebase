@@ -33,10 +33,12 @@ export interface Order {
   items: CartItem[];
   totalAmount: number;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  paymentStatus: 'unpaid' | 'paid';
   createdAt: number;
 }
 
 export type OrderStatus = Order['status'];
+export type PaymentStatus = Order['paymentStatus'];
 
 export interface AdminUser {
   email: string;
