@@ -1,0 +1,280 @@
+import React, { useEffect, useState } from 'react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../firebase';
+import { useNavigate } from 'react-router-dom';
+import { getOrders, getProducts, updateOrderStatus, addProduct, deleteProduct } from '../../services/db';
+import { generateProductDescription } from '../../services/gemini';
+import { Order, Product, CATEGORIES } from '../../types';
+import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag } from 'lucide-react';
+
+const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'orders' | 'products'>('orders');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  
+  // New Product Form State
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    price: '',
+    category: CATEGORIES[0],
+    imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
+    description: '',
+    inStock: true
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, [activeTab]);
+
+  const fetchData = async () => {
+    if (activeTab === 'orders') {
+      const data = await getOrders();
+      setOrders(data);
+    } else {
+      const data = await getProducts();
+      setProducts(data);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/admin');
+  };
+
+  const handleStatusUpdate = async (orderId: string, newStatus: Order['status']) => {
+    await updateOrderStatus(orderId, newStatus);
+    fetchData(); // Refresh
+  };
+
+  const handleGenerateDescription = async () => {
+    if (!newProduct.name) return alert("Enter a name first");
+    setIsGenerating(true);
+    const desc = await generateProductDescription(newProduct.name, newProduct.category, "Luxury, Chic, High-quality material, Women's Fashion");
+    setNewProduct(prev => ({ ...prev, description: desc }));
+    setIsGenerating(false);
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await addProduct({
+      name: newProduct.name,
+      price: parseFloat(newProduct.price),
+      category: newProduct.category as any,
+      imageUrl: newProduct.imageUrl,
+      description: newProduct.description,
+      inStock: newProduct.inStock
+    });
+    // Reset form
+    setNewProduct({ 
+      name: '', 
+      price: '', 
+      category: CATEGORIES[0], 
+      imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop', 
+      description: '', 
+      inStock: true 
+    });
+    fetchData();
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if(confirm('Are you sure you want to remove this item from the catalog?')) {
+      await deleteProduct(id);
+      fetchData();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 font-sans">
+      {/* Admin Nav */}
+      <nav className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <h1 className="text-lg font-serif font-bold text-gray-900 tracking-wide uppercase">Wisania Admin</h1>
+              <div className="ml-10 flex space-x-2">
+                <button 
+                  onClick={() => setActiveTab('orders')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'orders' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  <div className="flex items-center"><ShoppingBag size={16} className="mr-2"/> Orders</div>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('products')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'products' ? 'bg-black text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  <div className="flex items-center"><Package size={16} className="mr-2"/> Inventory</div>
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center">
+              <button onClick={handleLogout} className="text-gray-500 hover:text-red-600 flex items-center text-sm font-medium">
+                <LogOut size={16} className="mr-2" /> Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
+        
+        {/* ORDERS TAB */}
+        {activeTab === 'orders' && (
+          <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+               <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">Recent Orders</h2>
+               <span className="text-xs text-gray-400">Viewing {orders.length} orders</span>
+             </div>
+            <ul className="divide-y divide-gray-200">
+              {orders.map((order) => (
+                <li key={order.id} className="p-6 hover:bg-gray-50 transition-colors">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+                    <div>
+                      <div className="flex items-center">
+                         <h3 className="text-lg font-medium text-gray-900 mr-3">Order #{order.id.slice(0, 8)}</h3>
+                         <span className="text-xs text-gray-500 font-mono">{new Date(order.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <div className="mt-1 text-sm text-gray-600">
+                        <span className="font-medium">{order.customerName}</span> <span className="text-gray-400">|</span> <a href={`mailto:${order.email}`} className="text-blue-600 hover:underline">{order.email}</a> <span className="text-gray-400">|</span> {order.phone}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">{order.address}</p>
+                    </div>
+                    <div className="text-left md:text-right">
+                       <p className="text-xl font-bold text-gray-900">${order.totalAmount.toFixed(2)}</p>
+                       <div className="mt-2 inline-block">
+                         <select 
+                            value={order.status}
+                            onChange={(e) => handleStatusUpdate(order.id, e.target.value as Order['status'])}
+                            className={`block w-full pl-3 pr-8 py-1 text-xs font-semibold rounded-full border-0 focus:ring-0 cursor-pointer
+                            ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : 
+                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                              order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="processing">Processing</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                       </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded p-4 mt-2">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Items</h4>
+                    <ul className="space-y-2">
+                       {order.items.map((item, idx) => (
+                         <li key={idx} className="flex justify-between text-sm items-center">
+                           <div className="flex items-center">
+                              <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold mr-3">{item.quantity}</span>
+                              <span className="text-gray-700">{item.name}</span>
+                              <span className="ml-2 text-xs text-gray-400">({item.category})</span>
+                           </div>
+                           <span className="font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</span>
+                         </li>
+                       ))}
+                    </ul>
+                  </div>
+                </li>
+              ))}
+              {orders.length === 0 && <li className="p-12 text-center text-gray-500">No orders found.</li>}
+            </ul>
+          </div>
+        )}
+
+        {/* PRODUCTS TAB */}
+        {activeTab === 'products' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Add Product Form */}
+            <div className="lg:col-span-1">
+              <div className="bg-white shadow-sm border border-gray-200 rounded-lg p-6 sticky top-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-6 flex items-center">
+                  <Plus size={20} className="mr-2"/> New Product
+                </h3>
+                <form onSubmit={handleAddProduct} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Product Name</label>
+                    <input placeholder="e.g. Silk Evening Dress" required value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2" />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Price ($)</label>
+                      <input placeholder="0.00" type="number" step="0.01" required value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                      <select value={newProduct.category} onChange={e => setNewProduct({...newProduct, category: e.target.value})} className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2">
+                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Image URL</label>
+                    <input placeholder="https://..." value={newProduct.imageUrl} onChange={e => setNewProduct({...newProduct, imageUrl: e.target.value})} className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2" />
+                  </div>
+                  
+                  <div className="relative">
+                     <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                    <textarea placeholder="Product description..." required value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2 h-32" />
+                    <button 
+                      type="button" 
+                      onClick={handleGenerateDescription}
+                      disabled={isGenerating}
+                      className="absolute bottom-2 right-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 text-xs px-2 py-1 rounded shadow-sm flex items-center hover:from-purple-200 hover:to-pink-200 transition-all"
+                    >
+                      <Sparkles size={12} className="mr-1"/> {isGenerating ? 'Thinking...' : 'AI Write'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center bg-gray-50 p-2 rounded">
+                     <input type="checkbox" checked={newProduct.inStock} onChange={e => setNewProduct({...newProduct, inStock: e.target.checked})} className="mr-2 h-4 w-4 text-black focus:ring-black border-gray-300 rounded" />
+                     <label className="text-sm text-gray-700">Available in Stock</label>
+                  </div>
+
+                  <button type="submit" className="w-full bg-black text-white py-3 rounded text-sm font-medium hover:bg-gray-800 transition shadow-lg">Create Product</button>
+                </form>
+              </div>
+            </div>
+
+            {/* Product List */}
+            <div className="lg:col-span-2">
+               <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">Current Catalog</h2>
+                 </div>
+                <ul className="divide-y divide-gray-200 max-h-[800px] overflow-y-auto">
+                  {products.map(product => (
+                    <li key={product.id} className="p-4 flex items-center justify-between hover:bg-gray-50 group transition-colors">
+                      <div className="flex items-center">
+                        <div className="h-12 w-12 rounded bg-gray-100 overflow-hidden">
+                          <img className="h-full w-full object-cover" src={product.imageUrl} alt="" />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                          <div className="text-xs text-gray-500 flex items-center">
+                             <span className="bg-gray-100 px-2 py-0.5 rounded-full mr-2">{product.category}</span> 
+                             ${product.price}
+                             {!product.inStock && <span className="text-red-500 ml-2 font-bold text-[10px] uppercase">Sold Out</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={() => handleDeleteProduct(product.id)} className="text-gray-300 hover:text-red-600 p-2 transition-colors">
+                        <Trash2 size={18} />
+                      </button>
+                    </li>
+                  ))}
+                  {products.length === 0 && <li className="p-8 text-center text-gray-500">No products added yet.</li>}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;

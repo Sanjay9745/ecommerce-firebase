@@ -1,0 +1,23 @@
+# Wisania Robots.txt
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /product/*
+Disallow: /admin
+Disallow: /checkout
+
+# Sitemaps
+Sitemap: https://wisania.com/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 10
+
+# Specific bot instructions
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
