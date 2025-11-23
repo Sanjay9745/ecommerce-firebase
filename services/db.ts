@@ -160,25 +160,32 @@ export const deleteCategory = async (id: string) => {
 
 export const getFeaturedProducts = async (limitCount: number = 8): Promise<Product[]> => {
   try {
+    // Simplified query to avoid composite index requirement
+    // We'll filter inStock products in memory after fetching
     const q = query(
       collection(db, 'products'), 
       where('isFeatured', '==', true),
-      where('inStock', '==', true),
       orderBy('createdAt', 'desc'),
-      limit(limitCount)
+      limit(limitCount * 2) // Fetch more to account for out-of-stock filtering
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt || Date.now()
-      } as Product;
-    });
+    const products = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt || Date.now()
+        } as Product;
+      })
+      .filter(product => product.inStock) // Filter in-stock products in memory
+      .slice(0, limitCount); // Limit to requested count
+    
+    return products;
   } catch (error) {
     console.error("Error fetching featured products:", error);
-    throw error;
+    // Fallback: if there's still an error, return empty array instead of throwing
+    return [];
   }
 };
 

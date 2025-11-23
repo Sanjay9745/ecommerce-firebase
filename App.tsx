@@ -3,7 +3,20 @@ import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'reac
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from './firebase';
 import { CartProvider } from './context/CartContext';
-
+// Compatibility: when the app is served with path-style URLs (e.g. /admin)
+// but the app uses HashRouter, redirect path-style routes to hash routes
+// so direct navigation/bookmarks like http://host/admin still work.
+if (typeof window !== 'undefined') {
+  const pathname = window.location.pathname || '/';
+  // Only redirect top-level app paths (avoid redirecting real static assets)
+  const appPaths = ['/admin', '/shop', '/product', '/checkout'];
+  const shouldRedirect = appPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+  if (shouldRedirect && !window.location.hash.startsWith('#')) {
+    const targetHash = `#${pathname}${window.location.search || ''}${window.location.hash || ''}`;
+    // Replace so browser history isn't polluted
+    window.location.replace(`${window.location.origin}/${targetHash}`);
+  }
+}
 // Scroll to hash on navigation
 const ScrollToHash = () => {
   const location = useLocation();
