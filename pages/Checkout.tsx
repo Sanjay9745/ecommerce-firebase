@@ -15,6 +15,7 @@ const Checkout: React.FC = () => {
   const [formData, setFormData] = useState({
     customerName: '',
     email: '',
+    countryCode: '+91',
     phone: '',
     address: '',
     city: '',
@@ -32,11 +33,12 @@ const Checkout: React.FC = () => {
 
     try {
       const fullAddress = `${formData.address}, ${formData.city}, ${formData.zip}`;
+      const fullPhone = `${formData.countryCode}${formData.phone}`;
       
       await createOrder({
         customerName: formData.customerName,
         email: formData.email,
-        phone: formData.phone,
+        phone: fullPhone,
         address: fullAddress,
         items: cart,
         totalAmount: cartTotal,
@@ -124,14 +126,44 @@ const Checkout: React.FC = () => {
                 <input required type="text" name="customerName" value={formData.customerName} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2" />
               </div>
 
-              <div className="sm:col-span-1">
+              <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700">Email</label>
                 <input required type="email" name="email" value={formData.email} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2" />
               </div>
 
-              <div className="sm:col-span-1">
-                <label className="block text-sm font-medium text-gray-700">Phone</label>
-                <input required type="tel" name="phone" value={formData.phone} onChange={handleChange} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2" />
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                <div className="mt-1 flex gap-2">
+                  <select 
+                    name="countryCode" 
+                    value={formData.countryCode} 
+                    onChange={handleChange}
+                    className="w-32 border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2"
+                  >
+                    <option value="+91">🇮🇳 +91</option>
+                    <option value="+1">🇺🇸 +1</option>
+                    <option value="+44">🇬🇧 +44</option>
+                    <option value="+61">🇦🇺 +61</option>
+                    <option value="+971">🇦🇪 +971</option>
+                    <option value="+966">🇸🇦 +966</option>
+                    <option value="+65">🇸🇬 +65</option>
+                    <option value="+60">🇲🇾 +60</option>
+                    <option value="+92">🇵🇰 +92</option>
+                    <option value="+880">🇧🇩 +880</option>
+                    <option value="+94">🇱🇰 +94</option>
+                    <option value="+977">🇳🇵 +977</option>
+                  </select>
+                  <input 
+                    required 
+                    type="tel" 
+                    name="phone" 
+                    value={formData.phone} 
+                    onChange={handleChange}
+                    placeholder="Enter phone number"
+                    className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-black focus:border-black sm:text-sm border p-2" 
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">WhatsApp messages will be sent to this number</p>
               </div>
 
               <div className="sm:col-span-2">

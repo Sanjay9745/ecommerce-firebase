@@ -6,6 +6,7 @@ const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    countryCode: '+91',
     phone: '',
     subject: '',
     message: ''
@@ -24,11 +25,16 @@ const Contact: React.FC = () => {
     setError('');
 
     try {
-      await addContactMessage(formData);
+      const fullPhone = formData.phone ? `${formData.countryCode}${formData.phone}` : '';
+      await addContactMessage({
+        ...formData,
+        phone: fullPhone
+      });
       setSuccess(true);
       setFormData({
         name: '',
         email: '',
+        countryCode: '+91',
         phone: '',
         subject: '',
         message: ''
@@ -182,16 +188,35 @@ const Contact: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Phone Number
+                        Phone Number (Optional)
                       </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition"
-                        placeholder="+91 98765 43210"
-                      />
+                      <div className="flex gap-2">
+                        <select 
+                          name="countryCode" 
+                          value={formData.countryCode} 
+                          onChange={handleChange}
+                          className="w-28 px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition"
+                        >
+                          <option value="+91">🇮🇳 +91</option>
+                          <option value="+1">🇺🇸 +1</option>
+                          <option value="+44">🇬🇧 +44</option>
+                          <option value="+61">🇦🇺 +61</option>
+                          <option value="+971">🇦🇪 +971</option>
+                          <option value="+966">🇸🇦 +966</option>
+                          <option value="+65">🇸🇬 +65</option>
+                          <option value="+60">🇲🇾 +60</option>
+                          <option value="+92">🇵🇰 +92</option>
+                          <option value="+880">🇧🇩 +880</option>
+                        </select>
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleChange}
+                          className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition"
+                          placeholder="98765 43210"
+                        />
+                      </div>
                     </div>
 
                     <div>
