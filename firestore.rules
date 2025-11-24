@@ -36,18 +36,16 @@ service cloud.firestore {
     match /orders/{orderId} {
       // Admins can read all orders
       allow read: if isAdmin();
-      
-      // Customers can read their own orders (for order tracking)
-      allow read: if isAuthenticated() && 
-                   exists(/databases/$(database)/documents/orders/$(orderId)) &&
-                   get(/databases/$(database)/documents/orders/$(orderId)).data.email == request.auth.token.email;
-      
+
+      // Allow unauthenticated reads for order tracking (customers can track their orders)
+      allow read: if true;
+
       // Anyone can create an order (for checkout)
       allow create: if true;
-      
+
       // Only admins can update order status and delivery dates
       allow update: if isAdmin();
-      
+
       // No one can delete orders (for record keeping)
       allow delete: if false;
     }

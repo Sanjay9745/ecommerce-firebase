@@ -12,6 +12,39 @@ const OrderTracking = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Helper functions for data privacy
+  const maskEmail = (email: string): string => {
+    const [localPart, domain] = email.split('@');
+    if (localPart.length <= 2) return `${localPart}***@${domain}`;
+    return `${localPart.slice(0, 2)}***@${domain}`;
+  };
+
+  const maskPhone = (phone: string): string => {
+    // Remove any non-digit characters
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length <= 4) return phone;
+    
+    // Show first 2 digits, *** in middle, last 2 digits
+    const firstTwo = digits.slice(0, 2);
+    const lastTwo = digits.slice(-2);
+    return `${firstTwo}***${lastTwo}`;
+  };
+
+  const maskAddress = (address: string): string => {
+    // Split address into parts (assuming comma-separated)
+    const parts = address.split(',');
+    if (parts.length <= 1) {
+      // If no commas, mask the middle part
+      if (address.length <= 10) return address;
+      return address.slice(0, 5) + '***' + address.slice(-5);
+    }
+    
+    // Mask the middle parts, keep first and last
+    const firstPart = parts[0].trim();
+    const lastPart = parts[parts.length - 1].trim();
+    return `${firstPart}, ***${lastPart}`;
+  };
+
   const trackOrder = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError('');
@@ -248,12 +281,12 @@ const OrderTracking = () => {
             <div>
               <h3 className="font-semibold mb-2 text-sm sm:text-base">Customer Information</h3>
               <p className="text-xs sm:text-sm text-gray-600 break-words">{order.customerName}</p>
-              <p className="text-xs sm:text-sm text-gray-600 break-all">{order.email}</p>
-              <p className="text-xs sm:text-sm text-gray-600 break-all">{order.phone}</p>
+              <p className="text-xs sm:text-sm text-gray-600 break-all">{maskEmail(order.email)}</p>
+              <p className="text-xs sm:text-sm text-gray-600 break-all">{maskPhone(order.phone)}</p>
             </div>
             <div>
               <h3 className="font-semibold mb-2 text-sm sm:text-base">Shipping Address</h3>
-              <p className="text-xs sm:text-sm text-gray-600 break-words">{order.address}</p>
+              <p className="text-xs sm:text-sm text-gray-600 break-words">{maskAddress(order.address)}</p>
             </div>
           </div>
 
