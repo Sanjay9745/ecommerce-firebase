@@ -34,13 +34,18 @@ service cloud.firestore {
     
     // Orders Collection
     match /orders/{orderId} {
-      // Only admins can read all orders
+      // Admins can read all orders
       allow read: if isAdmin();
+      
+      // Customers can read their own orders (for order tracking)
+      allow read: if isAuthenticated() && 
+                   exists(/databases/$(database)/documents/orders/$(orderId)) &&
+                   get(/databases/$(database)/documents/orders/$(orderId)).data.email == request.auth.token.email;
       
       // Anyone can create an order (for checkout)
       allow create: if true;
       
-      // Only admins can update order status
+      // Only admins can update order status and delivery dates
       allow update: if isAdmin();
       
       // No one can delete orders (for record keeping)
@@ -74,6 +79,15 @@ service cloud.firestore {
       allow read: if true;
       
       // Only admins can create, update, or delete settings
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Featured Products Collection (for caching featured products)
+    match /featured/{document=**} {
+      // Anyone can read featured products
+      allow read: if true;
+      
+      // Only admins can create, update, or delete featured products
       allow create, update, delete: if isAdmin();
     }
     

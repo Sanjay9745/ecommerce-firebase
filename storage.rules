@@ -1,0 +1,60 @@
+rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+// and that role is set manually in Firestore
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Images for products - anyone can read, only admins can write
+    match /products/{allPaths=**} {
+      // Anyone can read product images
+      allow read: if true;
+
+      // Only admins can upload, update, or delete product images
+      allow write: if request.auth != null && request.auth.token.admin == true;
+
+      // Only admins can delete product images
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Images for categories - anyone can read, only admins can write
+    match /categories/{allPaths=**} {
+      // Anyone can read category images
+      allow read: if true;
+
+      // Only admins can upload, update, or delete category images
+      allow write: if request.auth != null && request.auth.token.admin == true;
+
+      // Only admins can delete category images
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Website settings images (hero, logo, etc.) - anyone can read, only admins can write
+    match /settings/{allPaths=**} {
+      // Anyone can read website images
+      allow read: if true;
+
+      // Only admins can upload, update, or delete website images
+      allow write: if request.auth != null && request.auth.token.admin == true;
+
+      // Only admins can delete website images
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Temporary uploads (for processing) - only authenticated users can access
+    match /temp/{userId}/{allPaths=**} {
+      // User can read/write their own temp files
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // User can delete their own temp files
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Deny all other access by default
+    match /{allPaths=**} {
+      allow read, write, delete: if false;
+    }
+  }
+}
