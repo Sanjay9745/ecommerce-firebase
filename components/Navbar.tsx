@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Menu, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { getWebsiteSettings, WebsiteSettings } from '../services/websiteSettings';
@@ -10,6 +10,24 @@ const Navbar: React.FC = () => {
   const [settings, setSettings] = React.useState<WebsiteSettings | null>(null);
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+  const navigate = useNavigate();
+
+  const handleContactClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // If already on home page, just scroll to contact section
+    if (location.pathname === '/') {
+      const el = document.getElementById('contact');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    // Otherwise navigate to home and then scroll after a short delay
+    navigate('/');
+    setTimeout(() => {
+      const el = document.getElementById('contact');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 160);
+  };
 
   React.useEffect(() => {
     getWebsiteSettings().then(setSettings);
@@ -51,7 +69,7 @@ const Navbar: React.FC = () => {
             <Link to="/" onClick={() => window.scrollTo(0, 0)} className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Home</Link>
             <Link to="/shop" className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Products</Link>
             <Link to="/track-order" className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Track Order</Link>
-            <Link to="/#contact" className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Contact</Link>
+            <Link to="/#contact" onClick={handleContactClick} className="text-sm uppercase tracking-wide font-medium text-gray-500 hover:text-black transition-colors">Contact</Link>
           </div>
 
           {/* Icons */}
@@ -77,7 +95,7 @@ const Navbar: React.FC = () => {
           <Link to="/" className="block text-lg font-serif text-gray-800" onClick={() => { setIsMenuOpen(false); window.scrollTo(0, 0); }}>Home</Link>
           <Link to="/shop" className="block text-lg font-serif text-gray-800" onClick={() => setIsMenuOpen(false)}>Products</Link>
           <Link to="/track-order" className="block text-lg font-serif text-gray-800" onClick={() => setIsMenuOpen(false)}>Track Order</Link>
-          <Link to="/#contact" className="block text-lg font-serif text-gray-800" onClick={() => setIsMenuOpen(false)}>Contact</Link>
+          <Link to="/#contact" className="block text-lg font-serif text-gray-800" onClick={(e) => { setIsMenuOpen(false); handleContactClick(e as any); }}>Contact</Link>
         </div>
       </div>
     </nav>

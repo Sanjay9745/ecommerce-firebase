@@ -4,12 +4,12 @@ import { auth } from '../../firebase';
 import { useNavigate } from 'react-router-dom';
 import { 
   getOrders, getProducts, updateOrderStatus, addProduct, deleteProduct, updateProduct,
-  getCategories, addCategory, deleteCategory, getContactMessages, updateContactStatus, deleteContactMessage,
+  getCategories, addCategory, deleteCategory, updateCategory, getContactMessages, updateContactStatus, deleteContactMessage,
   updatePaymentStatus, updateEstimatedDeliveryDate
 } from '../../services/db';
 import { generateProductDescription } from '../../services/gemini';
 import { Order, Product, Category, ContactMessage, ContactStatus, formatINR, calculateDiscount } from '../../types';
-import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag, FolderOpen, Star, Mail, ChevronLeft, ChevronRight, MessageCircle, Settings } from 'lucide-react';
+import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag, FolderOpen, Star, Mail, ChevronLeft, ChevronRight, MessageCircle, Settings, Edit3 } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
 import { getWebsiteSettings, updateWebsiteSettings, WebsiteSettings } from '../../services/websiteSettings';
 import LottieLoader from '../../components/LottieLoader';
@@ -110,6 +110,7 @@ Wisania Team`
     imageUrl: '',
     description: ''
   });
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -333,17 +334,39 @@ Wisania Team`
     }
     
     try {
-      await addCategory({
-        name: newCategory.name.trim(),
-        imageUrl: newCategory.imageUrl,
-        description: newCategory.description.trim()
-      });
-      
+      if (editingCategoryId) {
+        // Update existing category
+        await updateCategory(editingCategoryId, {
+          name: newCategory.name.trim(),
+          imageUrl: newCategory.imageUrl,
+          description: newCategory.description.trim()
+        });
+        setEditingCategoryId(null);
+      } else {
+        await addCategory({
+          name: newCategory.name.trim(),
+          imageUrl: newCategory.imageUrl,
+          description: newCategory.description.trim()
+        });
+      }
+
       setNewCategory({ name: '', imageUrl: '', description: '' });
       fetchData();
     } catch (error) {
-      alert('Failed to add category');
+      alert(editingCategoryId ? 'Failed to update category' : 'Failed to add category');
     }
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setEditingCategoryId(category.id);
+    setNewCategory({ name: category.name, imageUrl: category.imageUrl, description: category.description || '' });
+    // Scroll to the add/edit form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelCategoryEdit = () => {
+    setEditingCategoryId(null);
+    setNewCategory({ name: '', imageUrl: '', description: '' });
   };
 
   const handleDeleteCategory = async (id: string, name: string) => {
@@ -1179,8 +1202,17 @@ Wisania Team`
                     type="submit" 
                     className="w-full bg-black text-white py-3 rounded-lg text-sm font-medium hover:bg-gray-800 transition shadow-lg"
                   >
-                    Create Category
+                    {editingCategoryId ? 'Save Changes' : 'Create Category'}
                   </button>
+                  {editingCategoryId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelCategoryEdit}
+                      className="w-full mt-2 bg-gray-200 text-gray-800 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </form>
               </div>
             </div>
@@ -1217,12 +1249,22 @@ Wisania Team`
                           )}
                           <p className="text-xs text-gray-500 mt-2">{productCount} product{productCount !== 1 ? 's' : ''}</p>
                         </div>
-                        <button
-                          onClick={() => handleDeleteCategory(category.id, category.name)}
-                          className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm text-gray-400 hover:text-red-600 p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            onClick={() => handleEditCategory(category)}
+                            className="bg-white/90 backdrop-blur-sm text-gray-500 hover:text-black p-2 rounded-full shadow-md transition-colors hover:bg-gray-50"
+                            title="Edit category"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(category.id, category.name)}
+                            className="bg-white/90 backdrop-blur-sm text-gray-400 hover:text-red-600 p-2 rounded-full shadow-md transition-colors hover:bg-red-50"
+                            title="Delete category"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
