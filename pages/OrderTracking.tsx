@@ -21,22 +21,29 @@ const OrderTracking = () => {
       const ordersRef = collection(db, 'orders');
       const orderNumberInt = parseInt(orderId.trim());
       
-      // Try to search by orderNumber first (new format)
-      let q = query(ordersRef, where('orderNumber', '==', orderNumberInt));
-      let querySnapshot = await getDocs(q);
+      // Search by orderNumber (new format with incremental numbers)
+      if (!isNaN(orderNumberInt)) {
+        const q = query(ordersRef, where('orderNumber', '==', orderNumberInt));
+        const querySnapshot = await getDocs(q);
 
-      // If not found, try searching by old id format for backward compatibility
-      if (querySnapshot.empty) {
-        q = query(ordersRef, where('id', '==', orderId.trim()));
-        querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const orderData = querySnapshot.docs[0].data() as Order;
+          setOrder({ ...orderData, id: querySnapshot.docs[0].id });
+          setLoading(false);
+          return;
+        }
       }
 
-      if (querySnapshot.empty) {
+      // If not found, search by document ID (for old orders without orderNumber)
+      const allOrdersSnapshot = await getDocs(ordersRef);
+      const foundOrder = allOrdersSnapshot.docs.find(doc => doc.id === orderId.trim());
+
+      if (foundOrder) {
+        const orderData = foundOrder.data() as Order;
+        setOrder({ ...orderData, id: foundOrder.id });
+      } else {
         setError('Order not found. Please check your order number.');
         setOrder(null);
-      } else {
-        const orderData = querySnapshot.docs[0].data() as Order;
-        setOrder({ ...orderData, id: querySnapshot.docs[0].id });
       }
     } catch (err) {
       console.error('Error tracking order:', err);

@@ -11,6 +11,7 @@ const Checkout: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [orderNumber, setOrderNumber] = useState<number | null>(null);
   
   const [formData, setFormData] = useState({
     customerName: '',
@@ -48,6 +49,7 @@ const Checkout: React.FC = () => {
       console.log(`Sending email to ${formData.email}... (Mock)`);
       console.log(`Order #${result.orderNumber} created`);
       
+      setOrderNumber(result.orderNumber);
       clearCart();
       setSuccess(true);
     } catch (err) {
@@ -66,12 +68,25 @@ const Checkout: React.FC = () => {
               <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
             <h2 className="mt-6 text-2xl font-bold text-gray-900">Order Placed Successfully!</h2>
+            {orderNumber && (
+              <p className="mt-2 text-lg font-semibold text-gray-900">
+                Order #{orderNumber}
+              </p>
+            )}
             <p className="mt-2 text-gray-600">
               Thank you for shopping with Wisania. An email confirmation has been sent to {formData.email}.
             </p>
+            {orderNumber && (
+              <button 
+                onClick={() => navigate(`/track-order?id=${orderNumber}`)}
+                className="mt-6 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Track Your Order
+              </button>
+            )}
             <button 
               onClick={() => navigate('/')}
-              className="mt-6 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-800"
+              className="mt-4 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-800"
             >
               Continue Shopping
             </button>

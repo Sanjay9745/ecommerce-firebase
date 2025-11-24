@@ -381,8 +381,13 @@ Wisania Team`
 
   const generateOrderMessage = (order: Order, template: string) => {
     const itemsList = order.items.map(item => `${item.quantity}x ${item.name}`).join(', ');
+    
+    // Use orderNumber if available, otherwise fall back to shortened document ID
     const orderIdDisplay = order.orderNumber ? order.orderNumber.toString() : order.id.slice(0, 8);
-    const trackingLink = `${window.location.origin}/track-order?id=${order.orderNumber || order.id}`;
+    
+    // For tracking link, use orderNumber (numeric) if available, otherwise use document ID
+    const trackingId = order.orderNumber ? order.orderNumber.toString() : order.id;
+    const trackingLink = `${window.location.origin}/track-order?id=${trackingId}`;
     
     let message = template
       .replace('{customerName}', order.customerName)
