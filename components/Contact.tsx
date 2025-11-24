@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { addContactMessage } from '../services/db';
 import { Mail, Phone, MapPin, Send, CheckCircle } from 'lucide-react';
 import { getWebsiteSettings, WebsiteSettings } from '../services/websiteSettings';
+import LottieLoader from './LottieLoader';
 
 const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -279,8 +280,8 @@ const Contact: React.FC = () => {
                   >
                     {loading ? (
                       <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        Sending...
+                        <LottieLoader size="lg" className="inline-block" />
+                        <span className="ml-2">Sending...</span>
                       </>
                     ) : (
                       <>

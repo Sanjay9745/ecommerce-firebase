@@ -6,6 +6,7 @@ import { Product, Category, formatINR, calculateDiscount } from '../types';
 import { useCart } from '../context/CartContext';
 import Contact from '../components/Contact';
 import { getWebsiteSettings, WebsiteSettings } from '../services/websiteSettings';
+import LottieLoader from '../components/LottieLoader';
 
 const Home: React.FC = () => {
   const [featured, setFeatured] = useState<Product[]>([]);
@@ -33,6 +34,15 @@ const Home: React.FC = () => {
     };
     fetchData();
   }, []);
+
+  // Show loading state while fetching settings to prevent flickering
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <LottieLoader size="lg" text="Loading..." />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white">

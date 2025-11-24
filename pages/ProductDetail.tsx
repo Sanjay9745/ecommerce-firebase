@@ -4,6 +4,7 @@ import { getProducts } from '../services/db';
 import { Product, formatINR, calculateDiscount } from '../types';
 import { useCart } from '../context/CartContext';
 import { Check, Truck, ShieldCheck, Tag, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import LottieLoader from '../components/LottieLoader';
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -105,7 +106,7 @@ const ProductDetail: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center"><LottieLoader size="lg" text="Loading..." /></div>;
   if (!product) return <div className="h-screen flex items-center justify-center">Product not found.</div>;
 
   // Combine main image with additional images

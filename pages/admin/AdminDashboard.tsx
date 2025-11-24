@@ -5,13 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import { 
   getOrders, getProducts, updateOrderStatus, addProduct, deleteProduct, updateProduct,
   getCategories, addCategory, deleteCategory, getContactMessages, updateContactStatus, deleteContactMessage,
-  updatePaymentStatus
+  updatePaymentStatus, updateEstimatedDeliveryDate
 } from '../../services/db';
 import { generateProductDescription } from '../../services/gemini';
 import { Order, Product, Category, ContactMessage, ContactStatus, formatINR, calculateDiscount } from '../../types';
 import { Package, Plus, Trash2, LogOut, Sparkles, ShoppingBag, FolderOpen, Star, Mail, ChevronLeft, ChevronRight, MessageCircle, Settings } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
 import { getWebsiteSettings, updateWebsiteSettings, WebsiteSettings } from '../../services/websiteSettings';
+import LottieLoader from '../../components/LottieLoader';
 
 type TabType = 'orders' | 'products' | 'categories' | 'contacts' | 'whatsapp' | 'settings';
 
@@ -188,6 +189,15 @@ Wisania Team`
       fetchData();
     } catch (error) {
       alert('Failed to update payment status');
+    }
+  };
+
+  const handleDeliveryDateUpdate = async (orderId: string, date: string) => {
+    try {
+      await updateEstimatedDeliveryDate(orderId, date);
+      fetchData();
+    } catch (error) {
+      alert('Failed to update estimated delivery date');
     }
   };
 
@@ -371,15 +381,28 @@ Wisania Team`
 
   const generateOrderMessage = (order: Order, template: string) => {
     const itemsList = order.items.map(item => `${item.quantity}x ${item.name}`).join(', ');
-    const trackingLink = `${window.location.origin}/track-order?id=${order.id}`;
+    const orderIdDisplay = order.orderNumber ? order.orderNumber.toString() : order.id.slice(0, 8);
+    const trackingLink = `${window.location.origin}/track-order?id=${order.orderNumber || order.id}`;
     
-    return template
+    let message = template
       .replace('{customerName}', order.customerName)
-      .replace('{orderId}', order.id.slice(0, 8))
+      .replace('{orderId}', orderIdDisplay)
       .replace('{totalAmount}', formatINR(order.totalAmount))
       .replace('{status}', order.status.charAt(0).toUpperCase() + order.status.slice(1))
       .replace('{items}', itemsList)
       .replace('{trackingLink}', trackingLink);
+    
+    // Add estimated delivery date if available
+    if (order.estimatedDeliveryDate) {
+      const deliveryDate = new Date(order.estimatedDeliveryDate).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      message += `\n\n*Estimated Delivery:* ${deliveryDate}`;
+    }
+    
+    return message;
   };
 
   const generateContactMessage = (contact: ContactMessage, template: string) => {
@@ -600,7 +623,7 @@ Wisania Team`
                   <div className="flex flex-col gap-4">
                     <div>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <h3 className="text-lg font-medium text-gray-900">Order #{order.id.slice(0, 8)}</h3>
+                        <h3 className="text-lg font-medium text-gray-900">Order #{order.orderNumber || order.id.slice(0, 8)}</h3>
                         <span className="text-xs text-gray-500 font-mono">{new Date(order.createdAt).toLocaleDateString('en-IN')}</span>
                       </div>
                       <div className="mt-1 text-sm text-gray-600 flex flex-col gap-1">
@@ -635,6 +658,16 @@ Wisania Team`
                           <option value="unpaid">💳 Unpaid</option>
                           <option value="paid">✅ Paid</option>
                         </select>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Estimated Delivery Date</label>
+                          <input
+                            type="date"
+                            value={order.estimatedDeliveryDate || ''}
+                            onChange={(e) => handleDeliveryDateUpdate(order.id, e.target.value)}
+                            className="block w-full px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                            min={new Date().toISOString().split('T')[0]}
+                          />
+                        </div>
                       </div>
                       <button
                         onClick={() => {
@@ -1532,8 +1565,7 @@ Wisania Team`
 
               {isLoadingSettings ? (
                 <div className="p-12 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-600">Loading settings...</p>
+                  <LottieLoader size="lg" text="Loading settings..." />
                 </div>
               ) : websiteSettings ? (
                 <div className="p-6 space-y-8">
@@ -1554,9 +1586,9 @@ Wisania Team`
                             </div>
                           )}
                           <ImageUpload
-                            currentImage={websiteSettings.siteLogo}
-                            onImageUploaded={(url) => setWebsiteSettings({...websiteSettings, siteLogo: url})}
-                            folder="logo"
+                            value={websiteSettings.siteLogo}
+                            onChange={(url) => setWebsiteSettings({...websiteSettings, siteLogo: url})}
+                            label="Upload Logo"
                           />
                         </div>
                       </div>
@@ -1620,9 +1652,9 @@ Wisania Team`
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Image URL</label>
                         <ImageUpload
-                          currentImage={websiteSettings.heroImage}
-                          onImageUploaded={(url) => setWebsiteSettings({...websiteSettings, heroImage: url})}
-                          folder="hero"
+                          value={websiteSettings.heroImage}
+                          onChange={(url) => setWebsiteSettings({...websiteSettings, heroImage: url})}
+                          label="Upload Hero Image"
                         />
                       </div>
                     </div>
@@ -1942,8 +1974,8 @@ Wisania Team`
                     >
                       {isSavingSettings ? (
                         <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                          Saving...
+                          <LottieLoader size="lg" className="inline-block" />
+                          <span className="ml-2">Saving...</span>
                         </>
                       ) : (
                         <>

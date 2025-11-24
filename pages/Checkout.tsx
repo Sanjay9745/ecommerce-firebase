@@ -35,7 +35,7 @@ const Checkout: React.FC = () => {
       const fullAddress = `${formData.address}, ${formData.city}, ${formData.zip}`;
       const fullPhone = `${formData.countryCode}${formData.phone}`;
       
-      await createOrder({
+      const result = await createOrder({
         customerName: formData.customerName,
         email: formData.email,
         phone: fullPhone,
@@ -46,6 +46,7 @@ const Checkout: React.FC = () => {
 
       // Simulate email notification logic (would be server-side)
       console.log(`Sending email to ${formData.email}... (Mock)`);
+      console.log(`Order #${result.orderNumber} created`);
       
       clearCart();
       setSuccess(true);

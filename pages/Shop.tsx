@@ -4,6 +4,7 @@ import { getProducts, getCategories } from '../services/db';
 import { Product, Category, formatINR, calculateDiscount } from '../types';
 import { SlidersHorizontal, Tag, Search } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import LottieLoader from '../components/LottieLoader';
 
 const Shop: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -107,7 +108,7 @@ const Shop: React.FC = () => {
         {/* Grid */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
-             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+             <LottieLoader size="lg" />
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-6">

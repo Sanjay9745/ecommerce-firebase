@@ -59,15 +59,50 @@ export const deleteProduct = async (id: string) => {
 
 // --- Orders ---
 
-export const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'status' | 'paymentStatus'>) => {
+// Get next order number from counter
+const getNextOrderNumber = async (): Promise<number> => {
   try {
+    const counterRef = doc(db, 'counters', 'orderNumber');
+    const counterDoc = await getDocs(query(collection(db, 'counters'), where('__name__', '==', 'orderNumber'), limit(1)));
+    
+    if (counterDoc.empty) {
+      // Initialize counter if it doesn't exist
+      await addDoc(collection(db, 'counters'), {
+        currentNumber: 1001
+      });
+      const newCounterRef = doc(db, 'counters', 'orderNumber');
+      await updateDoc(newCounterRef, { currentNumber: 1001 });
+      return 1001;
+    }
+    
+    const currentNumber = counterDoc.docs[0].data().currentNumber || 1000;
+    const nextNumber = currentNumber + 1;
+    
+    // Update counter
+    await updateDoc(doc(db, 'counters', 'orderNumber'), {
+      currentNumber: nextNumber
+    });
+    
+    return nextNumber;
+  } catch (error) {
+    console.error("Error getting order number:", error);
+    // Fallback to timestamp-based number
+    return 1000 + Math.floor(Date.now() / 1000) % 100000;
+  }
+};
+
+export const createOrder = async (orderData: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'status' | 'paymentStatus'>) => {
+  try {
+    const orderNumber = await getNextOrderNumber();
+    
     const docRef = await addDoc(collection(db, 'orders'), {
       ...orderData,
+      orderNumber,
       status: 'pending' as OrderStatus,
       paymentStatus: 'unpaid',
       createdAt: Date.now()
     });
-    return docRef;
+    return { docRef, orderNumber };
   } catch (error) {
     console.error("Error creating order:", error);
     throw error;
@@ -114,6 +149,19 @@ export const updatePaymentStatus = async (id: string, paymentStatus: 'paid' | 'u
     });
   } catch (error) {
     console.error("Error updating payment status:", error);
+    throw error;
+  }
+};
+
+export const updateEstimatedDeliveryDate = async (id: string, estimatedDeliveryDate: string) => {
+  try {
+    const ref = doc(db, 'orders', id);
+    await updateDoc(ref, { 
+      estimatedDeliveryDate,
+      updatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error("Error updating estimated delivery date:", error);
     throw error;
   }
 };

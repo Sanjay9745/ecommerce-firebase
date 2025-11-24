@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { compressAndConvertImage, validateImageFile, formatFileSize } from '../services/imageUpload';
+import LottieLoader from './LottieLoader';
 
 interface ImageUploadProps {
   value: string;
@@ -71,10 +72,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
           className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 cursor-pointer transition-colors bg-gray-50 hover:bg-gray-100"
         >
           {uploading ? (
-            <div className="flex flex-col items-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-black mb-2"></div>
-              <p className="text-sm text-gray-600">Processing image...</p>
-            </div>
+            <LottieLoader size="lg" text="Processing image..." />
           ) : (
             <div className="flex flex-col items-center">
               <Upload className="h-10 w-10 text-gray-400 mb-2" />

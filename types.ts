@@ -26,6 +26,7 @@ export interface CartItem extends Product {
 
 export interface Order {
   id: string;
+  orderNumber: number; // Incremental order number (1001, 1002, etc.)
   customerName: string;
   email: string;
   phone: string;
@@ -34,6 +35,7 @@ export interface Order {
   totalAmount: number;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   paymentStatus: 'unpaid' | 'paid';
+  estimatedDeliveryDate?: string; // Optional estimated delivery date (YYYY-MM-DD format)
   createdAt: number;
 }
 
